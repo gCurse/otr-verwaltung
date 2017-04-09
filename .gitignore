@@ -5,3 +5,4 @@ conf
 /*.gitignore
 /update.txt
 *.pyc
+otrverwaltung/gui/pango
