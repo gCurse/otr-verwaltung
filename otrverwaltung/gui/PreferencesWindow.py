@@ -63,7 +63,7 @@ class PreferencesWindow(gtk.Window, gtk.Buildable):
         self.gui.set_model_from_list(self.builder.get_object('combobox_man_mp4'), cut_interface + avidemux_man + virtualdub_man)
        
         self.gui.set_model_from_list(self.builder.get_object('comboboxServer'), ["http://cutlist.at/"])
-        self.gui.set_model_from_list(self.builder.get_object('entry_decoder'), ['intern-otrdecoder','intern-easydecoder'])
+        self.gui.set_model_from_list(self.builder.get_object('entry_decoder'), ['intern-otrdecoder','intern-easydecoder','otrtool'])
 
         self.gui.set_model_from_list(self.builder.get_object('h264_codec_cbox'), ["ffdshow", "x264vfw", "komisar"])
         

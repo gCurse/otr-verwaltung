@@ -112,7 +112,7 @@ class DecodeOrCut(Cut):
     def decode(self, file_conclusions):
 
         # no decoder
-        if not "decode" in self.config.get('programs', 'decoder'): # no decoder specified
+        if not "decode" or not "otrtool" in self.config.get('programs', 'decoder'): # no decoder specified
             # dialog box: no decoder
             self.gui.message_error_box("Es ist kein korrekter Dekoder angegeben!")
             return False
@@ -142,13 +142,14 @@ class DecodeOrCut(Cut):
             # update progress
             self.gui.main_window.set_tasks_text("Datei %s/%s dekodieren" % (count + 1, len(file_conclusions)))
 
-            verify = True
-
-            command = [self.config.get_program('decoder'), "-i", file_conclusion.otrkey, "-e", email, "-p", password, "-o", self.config.get('general', 'folder_uncut_avis')]
-
-            if not self.config.get('general', 'verify_decoded'):
-                verify = False
-                command += ["-q"]
+            if self.config.get_program('decoder') == 'otrtool':
+                command = ["/usr/bin/otrtool", "-x", "-g", "-e", email, "-p", password, "-O", self.config.get('general', 'folder_uncut_avis') + "/" + basename(file_conclusion.otrkey[0:len(file_conclusion.otrkey)-7]), file_conclusion.otrkey]
+            else:
+                verify = True
+                command = [self.config.get_program('decoder'), "-i", file_conclusion.otrkey, "-e", email, "-p", password, "-o", self.config.get('general', 'folder_uncut_avis')]
+                if not self.config.get('general', 'verify_decoded'):
+                    verify = False
+                    command += ["-q"]
 
             try:
                 process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -157,43 +158,66 @@ class DecodeOrCut(Cut):
                 file_conclusion.decode.message = "Dekoder wurde nicht gefunden."
                 continue
 
-            while True:
-                l = ""
-                while True:
-                    c = process.stdout.read(1)
-                    if c == "\r" or c == "\n":
-                        break
-                    l += c
+            if self.config.get_program('decoder') == 'otrtool':
+                error_message = ""
+                file_count = count + 1, len(file_conclusions)
+                # list of non error strings
+                nonerror = ["OK", "gui", "OTR-Tool, ", "Keyphrase from", "Keyphrase:",
+                            "Decrypting", "Trying to contact", "Server responded", "info:", "warning:"]
+                for line in iter(process.stderr.readline,''):
+                    # Gathering errors
+                    if not any(x in line for x in nonerror):
+                        error_message += line.strip()
 
-                if not l:
-                    break
+                    if "Decrypting" in line:
+                        self.gui.main_window.set_tasks_text("Datei %s/%s dekodieren und prüfen" % file_count)
 
-                try:
-                    if verify:
-                        file_count = count + 1, len(file_conclusions)
-
-                        if "input" in l:
-                            self.gui.main_window.set_tasks_text("Eingabedatei %s/%s kontrollieren" % file_count)
-                        elif "output" in l:
-                            self.gui.main_window.set_tasks_text("Ausgabedatei %s/%s kontrollieren" % file_count)
-                        elif "Decoding" in l:
-                            self.gui.main_window.set_tasks_text("Datei %s/%s dekodieren" % file_count)
-
-                    progress = int(l[10:13])
-                    # update progress
-                    self.gui.main_window.set_tasks_progress(progress)
+                    if ("gui" in line) and not ("Finished" in line):
+                        progress = int(line[5:])
+                        # update progress
+                        self.gui.main_window.set_tasks_progress(progress)
 
                     while events_pending():
-                        main_iteration(False)
-                except ValueError:
-                    pass
+                            main_iteration(False)
+            else:
+                while True:
+                    l = ""
+                    while True:
+                        c = process.stdout.read(1)
+                        if c == "\r" or c == "\n":
+                            break
+                        l += c
 
-            # errors?
-            errors = process.stderr.readlines()
-            error_message = ""
-            for error in errors:
-                if not 'libmediaclient' in error:
-                    error_message += error.strip()
+                    if not l:
+                        break
+
+                    try:
+                        if verify:
+                            file_count = count + 1, len(file_conclusions)
+
+                            if "input" in l:
+                                self.gui.main_window.set_tasks_text("Eingabedatei %s/%s kontrollieren" % file_count)
+                            elif "output" in l:
+                                self.gui.main_window.set_tasks_text("Ausgabedatei %s/%s kontrollieren" % file_count)
+                            elif "Decoding" in l:
+                                self.gui.main_window.set_tasks_text("Datei %s/%s dekodieren" % file_count)
+
+                            progress = int(l[10:13])
+
+                        # update progress
+                        self.gui.main_window.set_tasks_progress(progress)
+
+                        while events_pending():
+                            main_iteration(False)
+                    except ValueError:
+                        pass
+
+                # errors?
+                errors = process.stderr.readlines()
+                error_message = ""
+                for error in errors:
+                    if not 'libmediaclient' in error:
+                        error_message += error.strip()
 
             if error_message == "": # dekodieren erfolgreich
                 file_conclusion.decode.status = Status.OK
