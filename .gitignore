@@ -3,6 +3,9 @@ conf
 /conf~
 /otr-verwaltung.e4p
 /*.gitignore
+.gitignore
 /update.txt
 *.pyc
+*.bak
+*.diff
 otrverwaltung/gui/pango
